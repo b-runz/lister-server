@@ -1,23 +1,15 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 
-//Media Sample API Values
-const SAMPLE_URL = "https://storage.googleapis.com/cpe-sample-media/content.json";
-const StreamType = {
-  DASH: 'application/dash+xml',
-  HLS: 'application/x-mpegurl'
-}
-const TEST_STREAM_TYPE = StreamType.DASH
+// Static MP3 file URL (will be hosted on GitHub Pages)
+const STATIC_AUDIO_URL = "https://lister.brj.one/audio.mp3";
 
 // Debug Logger
 const castDebugLogger = cast.debug.CastDebugLogger.getInstance();
-const LOG_TAG = 'MyAPP.LOG';
+const LOG_TAG = 'ListerReceiver';
 
-// Enable debug logger and show a 'DEBUG MODE' overlay at top left corner.
+// Enable debug logger
 castDebugLogger.setEnabled(true);
-
-// Show debug overlay
-// castDebugLogger.showDebugLogs(true);
 
 // Set verbosity level for Core events.
 castDebugLogger.loggerLevelByEvents = {
@@ -30,126 +22,158 @@ castDebugLogger.loggerLevelByTags = {
     LOG_TAG: cast.framework.LoggerLevel.DEBUG,
 };
 
-function makeRequest (method, url) {
-  return new Promise(function (resolve, reject) {
-    let xhr = new XMLHttpRequest();
-    xhr.open(method, url);
-    xhr.onload = function () {
-      if (this.status >= 200 && this.status < 300) {
-        resolve(JSON.parse(xhr.response));
-      } else {
-        reject({
-          status: this.status,
-          statusText: xhr.statusText
-        });
-      }
-    };
-    xhr.onerror = function () {
-      reject({
-        status: this.status,
-        statusText: xhr.statusText
-      });
-    };
-    xhr.send();
-  });
+// Auto-load and loop the static MP3 file
+function autoLoadMedia() {
+  const mediaInformation = new cast.framework.messages.MediaInformation();
+  mediaInformation.contentId = STATIC_AUDIO_URL;
+  mediaInformation.contentUrl = STATIC_AUDIO_URL;
+  mediaInformation.contentType = 'audio/mpeg';
+  
+  // Add metadata
+  const metadata = new cast.framework.messages.GenericMediaMetadata();
+  metadata.title = 'Lister Audio';
+  metadata.subtitle = 'Game Audio Track - Looping';
+  metadata.images = [
+    new cast.framework.messages.Image('https://lister.brj.one/favicon.ico')
+  ];
+  mediaInformation.metadata = metadata;
+  
+  // Set up looping
+  mediaInformation.tracks = [];
+  
+  const loadRequestData = new cast.framework.messages.LoadRequestData();
+  loadRequestData.media = mediaInformation;
+  loadRequestData.autoplay = true;
+  
+  castDebugLogger.info(LOG_TAG, 'Auto-loading static MP3 with looping:', STATIC_AUDIO_URL);
+  
+  // Load the media
+  playerManager.load(loadRequestData);
 }
 
+// Intercept LOAD requests to handle static MP3 playback (for external senders)
 playerManager.setMessageInterceptor(
   cast.framework.messages.MessageType.LOAD,
   request => {
-    castDebugLogger.info(LOG_TAG, 'Intercepting LOAD request');
-
-    // Map contentId to entity
-    if (request.media && request.media.entity) {
-      request.media.contentId = request.media.entity;
-    }
+    castDebugLogger.info(LOG_TAG, 'Intercepting LOAD request for static MP3');
 
     return new Promise((resolve, reject) => {
-      // Fetch repository metadata
-      makeRequest('GET', SAMPLE_URL)
-        .then(function (data) {
-          // Obtain resources by contentId from downloaded repository metadata.
-          let item = data[request.media.contentId];
-          if(!item) {
-            // Content could not be found in repository
-            castDebugLogger.error(LOG_TAG, 'Content not found');
-            reject();
-          } else {
-            // Adjusting request to make requested content playable
-            request.media.contentType = TEST_STREAM_TYPE;
+      try {
+        // Set up the static MP3 file
+        request.media.contentUrl = STATIC_AUDIO_URL;
+        request.media.contentType = 'audio/mpeg';
+        
+        // Add metadata for the audio file
+        let metadata = new cast.framework.messages.GenericMediaMetadata();
+        metadata.title = 'Lister Audio';
+        metadata.subtitle = 'Game Audio Track - Looping';
+        
+        // Optional: Add an image for the audio
+        metadata.images = [
+          new cast.framework.messages.Image('https://lister.brj.one/favicon.ico')
+        ];
 
-            // Configure player to parse DASH content
-            if(TEST_STREAM_TYPE == StreamType.DASH) {
-              request.media.contentUrl = item.stream.dash;
-            }
-
-            // Configure player to parse HLS content
-            else if(TEST_STREAM_TYPE == StreamType.HLS) {
-              request.media.contentUrl = item.stream.hls
-              request.media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
-              request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
-            }
-            
-            castDebugLogger.warn(LOG_TAG, 'Playable URL:', request.media.contentUrl);
-            
-            // Add metadata
-            let metadata = new cast.framework.messages.GenericMediaMetadata();
-            metadata.title = item.title;
-            metadata.subtitle = item.author;
-
-            request.media.metadata = metadata;
-
-            // Resolve request
-            resolve(request);
-          }
-      });
+        request.media.metadata = metadata;
+        
+        castDebugLogger.info(LOG_TAG, 'Playing static MP3:', request.media.contentUrl);
+        
+        // Resolve the modified request
+        resolve(request);
+      } catch (error) {
+        castDebugLogger.error(LOG_TAG, 'Error setting up MP3 playback:', error);
+        reject(error);
+      }
     });
   });
 
-// Optimizing for smart displays
+// Set up touch controls for audio playback
 const touchControls = cast.framework.ui.Controls.getInstance();
 const playerData = new cast.framework.ui.PlayerData();
 const playerDataBinder = new cast.framework.ui.PlayerDataBinder(playerData);
 
-let browseItems = getBrowseItems();
-
-function getBrowseItems() {
-  let browseItems = [];
-  makeRequest('GET', SAMPLE_URL)
-  .then(function (data) {
-    for (let key in data) {
-      let item = new cast.framework.ui.BrowseItem();
-      item.entity = key;
-      item.title = data[key].title;
-      item.subtitle = data[key].description;
-      item.image = new cast.framework.messages.Image(data[key].poster);
-      item.imageType = cast.framework.ui.BrowseImageType.MOVIE;
-      browseItems.push(item);
-    }
-  });
-  return browseItems;
-}
-
-let browseContent = new cast.framework.ui.BrowseContent();
-browseContent.title = 'Up Next';
-browseContent.items = browseItems;
-browseContent.targetAspectRatio =
-  cast.framework.ui.BrowseImageAspectRatio.LANDSCAPE_16_TO_9;
-
+// Configure player controls for audio
 playerDataBinder.addEventListener(
   cast.framework.ui.PlayerDataEventType.MEDIA_CHANGED,
   (e) => {
     if (!e.value) return;
 
-    // Media browse
-    touchControls.setBrowseContent(browseContent);
-
-    // Clear default buttons and re-assign
+    // Clear default buttons and set up audio-specific controls
     touchControls.clearDefaultSlotAssignments();
+    
+    // Add common audio controls
     touchControls.assignButton(
       cast.framework.ui.ControlsSlot.SLOT_PRIMARY_1,
-      cast.framework.ui.ControlsButton.SEEK_BACKWARD_30
+      cast.framework.ui.ControlsButton.SEEK_BACKWARD_15
     );
+    touchControls.assignButton(
+      cast.framework.ui.ControlsSlot.SLOT_PRIMARY_2,
+      cast.framework.ui.ControlsButton.SEEK_FORWARD_15
+    );
+    
+    castDebugLogger.info(LOG_TAG, 'Audio controls configured');
   });
 
-context.start();
+// Listen for player events
+playerManager.addEventListener(
+  cast.framework.events.EventType.PLAYER_LOAD_COMPLETE,
+  () => {
+    castDebugLogger.info(LOG_TAG, 'Static MP3 loaded successfully');
+    updateUIStatus('Audio playing and looping');
+  });
+
+playerManager.addEventListener(
+  cast.framework.events.EventType.PLAYER_LOADING,
+  () => {
+    castDebugLogger.info(LOG_TAG, 'Loading audio...');
+    updateUIStatus('Loading audio...');
+  });
+
+playerManager.addEventListener(
+  cast.framework.events.EventType.ERROR,
+  (errorEvent) => {
+    castDebugLogger.error(LOG_TAG, 'Player error:', errorEvent.detailedErrorCode);
+    updateUIStatus('Error loading audio - retrying...');
+    // Retry loading after a delay
+    setTimeout(autoLoadMedia, 5000);
+  });
+
+// Handle when media ends - restart it for looping
+playerManager.addEventListener(
+  cast.framework.events.EventType.MEDIA_STATUS,
+  (event) => {
+    const mediaStatus = event.mediaStatus;
+    if (mediaStatus && mediaStatus.playerState === cast.framework.messages.PlayerState.IDLE) {
+      if (mediaStatus.idleReason === cast.framework.messages.IdleReason.FINISHED) {
+        castDebugLogger.info(LOG_TAG, 'Audio finished, restarting for loop');
+        updateUIStatus('Restarting audio loop...');
+        setTimeout(autoLoadMedia, 1000); // Small delay before restarting
+      }
+    } else if (mediaStatus && mediaStatus.playerState === cast.framework.messages.PlayerState.PLAYING) {
+      updateUIStatus('Audio playing and looping');
+    }
+  });
+
+// Update UI status function
+function updateUIStatus(status) {
+  const statusElements = document.querySelectorAll('.player-card div');
+  if (statusElements.length > 3) { // Updated index for new structure
+    statusElements[3].textContent = status;
+  }
+  
+  // Also update page title to show audio status
+  document.title = `LISTER - ${status}`;
+}
+
+// Set initial context options
+const options = new cast.framework.CastReceiverOptions();
+options.disableIdleTimeout = true;
+options.maxInactivity = 0; // Never idle out
+options.skipPlayersLoad = false;
+
+// Start the receiver context
+context.start(options).then(() => {
+  castDebugLogger.info(LOG_TAG, 'Cast receiver started, auto-loading audio');
+  updateUIStatus('Starting audio...');
+  // Auto-load the media after a short delay to ensure everything is ready
+  setTimeout(autoLoadMedia, 2000);
+});

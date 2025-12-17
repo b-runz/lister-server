@@ -48,6 +48,11 @@
       border-radius: 8px;
     }
 
+    /* Hide the cast media player UI - audio plays in background */
+    cast-media-player {
+      display: none;
+    }
+
     .info-box h1 {
       margin: 0;
       font-size: 2rem;
@@ -55,11 +60,11 @@
     }
 
     .word {
-      font-size: 7rem;
+      font-size: 6rem;
       font-weight: bold;
-
       color: #1565c0;
       /* Even darker blue */
+      margin: 20px 0;
     }
 
     .player-grid {
@@ -93,50 +98,69 @@
 
 <body>
   <div class="info-box">
-    <h1>Find similar to:</h1>
-    <span class="word">WORD</span>
+    <h1>🎵 LISTER</h1>
+    <span class="word">AUDIO</span>
     <div class="player-grid">
-      <!-- Example player boxes -->
       <div class="player-card">
-        <div class="player-name">Player 1</div>
-        <div>Number of words found: 12</div>
+        <div class="player-name">🔄 Auto-Playing</div>
+        <div>Loops continuously</div>
       </div>
       <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
+        <div class="player-name">📡 Status</div>
+        <div>Starting audio...</div>
       </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <div class="player-card">
-        <div class="player-name">Player 2</div>
-        <div>Number of words found: 8</div>
-      </div>
-      <!-- Add more player cards here -->
     </div>
   </div>
 
   <div class="footer">
-
+    <!-- Audio plays in background - UI hidden -->
     <cast-media-player></cast-media-player>
     <script src="js/receiver.js"></script>
+    
+    <script>
+      // Add some visual feedback that audio is playing
+      function addAudioVisualFeedback() {
+        const word = document.querySelector('.word');
+        if (word) {
+          // Add a subtle pulsing animation when audio is playing
+          word.style.animation = 'pulse 2s ease-in-out infinite';
+        }
+      }
+
+      // Add CSS animation for pulsing effect
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        
+        .audio-indicator {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          color: #1565c0;
+          font-size: 1.5rem;
+          animation: blink 1s ease-in-out infinite;
+        }
+        
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      // Add audio indicator
+      setTimeout(() => {
+        const indicator = document.createElement('div');
+        indicator.className = 'audio-indicator';
+        indicator.innerHTML = '🎵';
+        indicator.title = 'Background audio playing';
+        document.querySelector('.info-box').appendChild(indicator);
+        addAudioVisualFeedback();
+      }, 3000); // Show after audio starts
+    </script>
   </div>
 </body>
 
